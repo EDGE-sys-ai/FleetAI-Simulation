@@ -35,7 +35,7 @@ def run_headless(engine: SimulationEngine, duration: float = 60.0, tick_rate: fl
 
     engine.start()
     start_time = time.time()
-    last_print = 0
+    last_print: float = 0.0
     print_interval = 5.0
 
     try:
@@ -180,15 +180,29 @@ def run_visual(engine: SimulationEngine) -> None:
                     running = False
                 else:
                     ui_manager.handle_event(event)
-            else:
-                ui_manager.handle_event(event)
-
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    # Left-click: Select robot/rack and show telemetry
                     clicked = warehouse_view.handle_click(event.pos, view_x, view_y)
                     if clicked:
                         dashboard.select_product(clicked)
+                elif event.button == 3:
+                    # Right-click: Adjust simulation speed (cycle through speeds)
+                    speeds = [0.5, 1.0, 2.0]
+                    current_idx = speeds.index(engine.speed) if engine.speed in speeds else 1
+                    next_idx = (current_idx + 1) % len(speeds)
+                    engine.set_speed(speeds[next_idx])
+                elif event.button == 4:
+                    # Scroll wheel up: Increase speed
+                    engine.set_speed(min(10.0, engine.speed * 1.5))
+                elif event.button == 5:
+                    # Scroll wheel down: Decrease speed
+                    engine.set_speed(max(0.1, engine.speed / 1.5))
+            else:
+                ui_manager.handle_event(event)
 
-        screen.fill(viz_config.colors["background"])
+        colors = viz_config.colors or {"background": (30, 30, 40)}
+        screen.fill(colors.get("background", (30, 30, 40)))
 
         warehouse_view.draw(screen, view_x, view_y, show_paths=True)
 

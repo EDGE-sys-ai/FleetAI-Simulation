@@ -15,7 +15,7 @@ class Shelf:
     def available_space(self) -> int:
         return self.capacity - len(self.products)
 
-    def can_fit(self, product: Product) -> bool:
+    def can_fit(self, product: Optional[Product] = None) -> bool:
         return not self.is_full()
 
 
@@ -37,7 +37,7 @@ class Rack:
     def get_shelf(self, shelf_num: int) -> Optional[Shelf]:
         return self._shelves.get(shelf_num)
 
-    def add_product(self, product_id: str, preferred_shelf: int = None) -> Optional[int]:
+    def add_product(self, product_id: str, preferred_shelf: Optional[int] = None) -> Optional[int]:
         if preferred_shelf is not None and preferred_shelf in self._shelves:
             shelf = self._shelves[preferred_shelf]
             if shelf.can_fit(None):

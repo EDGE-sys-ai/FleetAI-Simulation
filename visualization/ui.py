@@ -1,34 +1,52 @@
-import pygame
-from typing import Dict, List, Tuple, Callable, Optional
+from typing import TYPE_CHECKING, Dict, List, Tuple, Callable, Optional
+
+if TYPE_CHECKING:
+    import pygame
+else:
+    try:
+        import pygame
+    except ImportError:
+        pygame = None  # type: ignore[assignment]
+
 from config import VisualizationConfig
 
 
 class Button:
     def __init__(self, x: int, y: int, width: int, height: int, text: str, callback: Callable, config: VisualizationConfig):
-        self.rect = pygame.Rect(x, y, width, height)
+        self.rect: Optional["pygame.Rect"] = None
+        if pygame is not None:
+            self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.callback = callback
         self.config = config
-        self.font = None
+        self.font: Optional["pygame.font.Font"] = None
         self.hovered = False
         self._init_font()
 
     def _init_font(self) -> None:
+        if pygame is None:
+            return
         try:
             self.font = pygame.font.SysFont("consolas", 12)
         except:
             self.font = pygame.font.Font(None, 14)
 
-    def draw(self, surface: pygame.Surface) -> None:
-        color = self.config.colors["panel_border"] if self.hovered else self.config.colors["grid"]
-        pygame.draw.rect(surface, self.config.colors["panel_bg"], self.rect)
+    def draw(self, surface: "pygame.Surface") -> None:
+        if pygame is None or self.rect is None:
+            return
+        colors = self.config.colors or {}
+        color = colors.get("panel_border", (80, 80, 100)) if self.hovered else colors.get("grid", (60, 60, 80))
+        pygame.draw.rect(surface, colors.get("panel_bg", (25, 25, 35)), self.rect)
         pygame.draw.rect(surface, color, self.rect, 2)
 
-        text_surf = self.font.render(self.text, True, self.config.colors["text"])
-        text_rect = text_surf.get_rect(center=self.rect.center)
-        surface.blit(text_surf, text_rect)
+        if self.font:
+            text_surf = self.font.render(self.text, True, colors.get("text", (220, 220, 230)))
+            text_rect = text_surf.get_rect(center=self.rect.center)
+            surface.blit(text_surf, text_rect)
 
-    def handle_event(self, event: pygame.event.Event) -> bool:
+    def handle_event(self, event: "pygame.event.Event") -> bool:
+        if pygame is None or self.rect is None:
+            return False
         if event.type == pygame.MOUSEMOTION:
             self.hovered = self.rect.collidepoint(event.pos)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -40,31 +58,41 @@ class Button:
 
 class SpeedControl:
     def __init__(self, x: int, y: int, config: VisualizationConfig, get_speed: Callable, set_speed: Callable):
-        self.rect = pygame.Rect(x, y, 200, 30)
+        self.rect: Optional["pygame.Rect"] = None
+        if pygame is not None:
+            self.rect = pygame.Rect(x, y, 200, 30)
         self.config = config
         self.get_speed = get_speed
         self.set_speed = set_speed
         self.speeds = [0.5, 1.0, 2.0, 5.0, 10.0]
-        self.font = None
+        self.font: Optional["pygame.font.Font"] = None
         self._init_font()
 
     def _init_font(self) -> None:
+        if pygame is None:
+            return
         try:
             self.font = pygame.font.SysFont("consolas", 12)
         except:
             self.font = pygame.font.Font(None, 14)
 
-    def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.rect(surface, self.config.colors["panel_bg"], self.rect)
-        pygame.draw.rect(surface, self.config.colors["panel_border"], self.rect, 1)
+    def draw(self, surface: "pygame.Surface") -> None:
+        if pygame is None or self.rect is None:
+            return
+        colors = self.config.colors or {}
+        pygame.draw.rect(surface, colors.get("panel_bg", (25, 25, 35)), self.rect)
+        pygame.draw.rect(surface, colors.get("panel_border", (80, 80, 100)), self.rect, 1)
 
         current = self.get_speed()
         idx = self.speeds.index(current) if current in self.speeds else 1
 
-        text = self.font.render(f"Speed: {current:.1f}x", True, self.config.colors["text"])
-        surface.blit(text, (self.rect.x + 5, self.rect.y + 5))
+        if self.font:
+            text = self.font.render(f"Speed: {current:.1f}x", True, colors.get("text", (220, 220, 230)))
+            surface.blit(text, (self.rect.x + 5, self.rect.y + 5))
 
-    def handle_event(self, event: pygame.event.Event) -> bool:
+    def handle_event(self, event: "pygame.event.Event") -> bool:
+        if pygame is None or self.rect is None:
+            return False
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint(event.pos):
                 current = self.get_speed()
@@ -142,7 +170,7 @@ class UIManager:
     def _toggle_help(self) -> None:
         self.show_help = not self.show_help
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: "pygame.Surface") -> None:
         for btn in self.buttons:
             btn.draw(surface)
 
@@ -152,10 +180,13 @@ class UIManager:
         if self.show_help:
             self._draw_help(surface)
 
-    def _draw_help(self, surface: pygame.Surface) -> None:
+    def _draw_help(self, surface: "pygame.Surface") -> None:
+        if pygame is None:
+            return
         help_rect = pygame.Rect(50, 50, 400, 300)
-        pygame.draw.rect(surface, self.config.colors["panel_bg"], help_rect)
-        pygame.draw.rect(surface, self.config.colors["panel_border"], help_rect, 2)
+        colors = self.config.colors or {}
+        pygame.draw.rect(surface, colors.get("panel_bg", (25, 25, 35)), help_rect)
+        pygame.draw.rect(surface, colors.get("panel_border", (80, 80, 100)), help_rect, 2)
 
         try:
             font = pygame.font.SysFont("consolas", 12)
@@ -173,21 +204,27 @@ class UIManager:
             "S - Toggle statistics",
             "ESC - Exit",
             "",
-            "Click on rack/robot to select",
-            "Left/Right click speed control",
-            "to change simulation speed",
+            "MOUSE CONTROLS:",
+            "Left-click: Select robot/rack → Show telemetry",
+            "Right-click: Cycle speed (0.5x, 1.0x, 2.0x)",
+            "Scroll up/down: Fine-tune speed",
             "",
-            "PANELS:",
-            "Left: Warehouse visualization",
-            "Right: Dashboard & tracking",
+            "DISPLAY:",
+            "• Green ring: Robot moving/clear",
+            "• Yellow ring: Robot busy/scanning",
+            "• Red ring: Robot blocked/desync",
+            "• Glowing path: Active route to target",
+            "• Pulsing circles: Racks with products",
         ]
 
         for i, line in enumerate(lines):
-            color = self.config.colors["text"] if line.endswith(":") else self.config.colors["text_dim"]
+            color = colors.get("text", (220, 220, 230)) if line.endswith(":") else colors.get("text_dim", (150, 150, 170))
             text = font.render(line, True, color)
             surface.blit(text, (help_rect.x + 10, help_rect.y + 10 + i * 20))
 
-    def handle_event(self, event: pygame.event.Event) -> bool:
+    def handle_event(self, event: "pygame.event.Event") -> bool:
+        if pygame is None:
+            return False
         for btn in self.buttons:
             if btn.handle_event(event):
                 return True
@@ -201,6 +238,8 @@ class UIManager:
         return False
 
     def _handle_key(self, key: int) -> bool:
+        if pygame is None:
+            return False
         if key == pygame.K_SPACE:
             self._toggle_pause()
             return True

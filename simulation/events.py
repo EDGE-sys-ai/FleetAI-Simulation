@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 import uuid
 
 
@@ -91,7 +91,7 @@ class EventLog:
     def __init__(self, max_size: int = 10000):
         self.events: list[Event] = []
         self.max_size = max_size
-        self.subscribers: list[callable] = []
+        self.subscribers: List[Callable] = []
 
     def add(self, event: Event) -> None:
         self.events.append(event)
@@ -103,7 +103,7 @@ class EventLog:
             except Exception:
                 pass
 
-    def subscribe(self, callback: callable) -> None:
+    def subscribe(self, callback: Callable) -> None:
         self.subscribers.append(callback)
 
     def get_recent(self, count: int = 100) -> list[Event]:

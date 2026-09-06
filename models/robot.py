@@ -26,8 +26,8 @@ class PathStep:
 @dataclass
 class Robot:
     id: str
-    x: int
-    y: int
+    x: float
+    y: float
     warehouse_id: str
     status: RobotStatus = RobotStatus.IDLE
     carrying_product_id: Optional[str] = None
@@ -41,7 +41,7 @@ class Robot:
     scan_duration: float = 0.5
     load_unload_duration: float = 1.0
     task_timer: float = 0.0
-    speed: float = 1.0
+    speed: float = 5.0
     peer_intent: Optional[Tuple[int, int]] = None
     peer_status: str = "CLEAR"
     peer_message: str = ""
@@ -55,7 +55,7 @@ class Robot:
             warehouse_id=warehouse_id,
         )
 
-    def set_destination(self, x: int, y: int, path: List[Tuple[int, int]], rack_id: str = None, task: str = None) -> None:
+    def set_destination(self, x: int, y: int, path: List[Tuple[int, int]], rack_id: Optional[str] = None, task: Optional[str] = None) -> None:
         self.destination = (x, y)
         self.path = [PathStep(px, py) for px, py in path]
         self.path_index = 0
@@ -64,6 +64,7 @@ class Robot:
         self.status = RobotStatus.MOVING
 
     def update_position(self, dt: float) -> bool:
+        """Update robot position along path. Uses floating-point coordinates for smooth movement."""
         if self.status != RobotStatus.MOVING or not self.path or self.path_index >= len(self.path):
             return False
 
@@ -74,18 +75,28 @@ class Robot:
 
         travel = self.speed * dt
         if distance <= travel:
-            self.x = target.x
-            self.y = target.y
+            # Reached target waypoint
+            self.x = float(target.x)
+            self.y = float(target.y)
             self.path_index += 1
             if self.path_index >= len(self.path):
+                # Path complete
                 self.destination = None
                 self.status = RobotStatus.WAITING
                 return True
         else:
-            if dx:
-                self.x += min(abs(dx), travel) * (1 if dx > 0 else -1)
-            elif dy:
-                self.y += min(abs(dy), travel) * (1 if dy > 0 else -1)
+            # Move towards target with smooth floating-point interpolation
+            if dx != 0 and dy != 0:
+                # Diagonal movement - normalize to avoid moving faster diagonally
+                magnitude = (dx**2 + dy**2)**0.5
+                self.x += (dx / magnitude) * travel
+                self.y += (dy / magnitude) * travel
+            elif dx != 0:
+                # Horizontal movement
+                self.x += travel if dx > 0 else -travel
+            else:
+                # Vertical movement
+                self.y += travel if dy > 0 else -travel
 
         self.battery = max(0, self.battery - 0.01 * dt)
         return False

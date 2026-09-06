@@ -1,5 +1,13 @@
-import pygame
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    import pygame
+else:
+    try:
+        import pygame
+    except ImportError:
+        pygame = None  # type: ignore[assignment]
+
 from simulation.engine import SimulationEngine
 from simulation.events import Event, EventType
 from digital_twin.twin import DigitalTwin
@@ -10,9 +18,9 @@ class Dashboard:
     def __init__(self, config: VisualizationConfig, engine: SimulationEngine):
         self.config = config
         self.engine = engine
-        self.font = None
-        self.small_font = None
-        self.title_font = None
+        self.font: Optional["pygame.font.Font"] = None
+        self.small_font: Optional["pygame.font.Font"] = None
+        self.title_font: Optional["pygame.font.Font"] = None
         self._init_fonts()
         self.selected_product_id: Optional[str] = None
         self.show_digital_twin = True
@@ -21,6 +29,8 @@ class Dashboard:
         self.event_log_scroll = 0
 
     def _init_fonts(self) -> None:
+        if pygame is None:
+            return
         try:
             self.font = pygame.font.SysFont("consolas", 14)
             self.small_font = pygame.font.SysFont("consolas", 11)
@@ -30,10 +40,13 @@ class Dashboard:
             self.small_font = pygame.font.Font(None, 14)
             self.title_font = pygame.font.Font(None, 18)
 
-    def draw(self, surface: pygame.Surface, x: int, y: int, width: int, height: int) -> None:
+    def draw(self, surface: "pygame.Surface", x: int, y: int, width: int, height: int) -> None:
+        if pygame is None:
+            return
+        colors = self.config.colors or {}
         panel_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(surface, self.config.colors["panel_bg"], panel_rect)
-        pygame.draw.rect(surface, self.config.colors["panel_border"], panel_rect, 2)
+        pygame.draw.rect(surface, colors.get("panel_bg", (25, 25, 35)), panel_rect)
+        pygame.draw.rect(surface, colors.get("panel_border", (80, 80, 100)), panel_rect, 2)
 
         current_y = y + 10
         current_y = self._draw_header(surface, x + 10, current_y, width - 20)
@@ -49,12 +62,14 @@ class Dashboard:
         if self.show_stats and self.selected_product_id:
             self._draw_product_tracking(surface, x + 10, current_y, width - 20)
 
-    def _draw_header(self, surface: pygame.Surface, x: int, y: int, width: int) -> int:
-        title = self.title_font.render("WAREHOUSE DIGITAL TWIN SIMULATION", True, self.config.colors["text"])
-        surface.blit(title, (x, y))
+    def _draw_header(self, surface: "pygame.Surface", x: int, y: int, width: int) -> int:
+        if self.title_font:
+            colors = self.config.colors or {}
+            title = self.title_font.render("WAREHOUSE DIGITAL TWIN SIMULATION", True, colors.get("text", (220, 220, 230)))
+            surface.blit(title, (x, y))
         return y + 25
 
-    def _draw_simulation_stats(self, surface: pygame.Surface, x: int, y: int, width: int) -> int:
+    def _draw_simulation_stats(self, surface: "pygame.Surface", x: int, y: int, width: int) -> int:
         stats = self.engine.get_stats()
         lines = [
             f"Time: {stats['simulation_time']:.1f}s  |  Speed: {stats['speed']:.1f}x  |  {'PAUSED' if stats['paused'] else 'RUNNING'}",
@@ -63,45 +78,56 @@ class Dashboard:
         ]
 
         for line in lines:
-            text = self.font.render(line, True, self.config.colors["text"])
-            surface.blit(text, (x, y))
+            if self.font:
+                colors = self.config.colors or {}
+                text = self.font.render(line, True, colors.get("text", (220, 220, 230)))
+                surface.blit(text, (x, y))
             y += 20
         return y + 5
 
-    def _draw_warehouse_stats(self, surface: pygame.Surface, x: int, y: int, width: int) -> int:
-        title = self.font.render("WAREHOUSES", True, (200, 200, 100))
-        surface.blit(title, (x, y))
+    def _draw_warehouse_stats(self, surface: "pygame.Surface", x: int, y: int, width: int) -> int:
+        if self.font:
+            title = self.font.render("WAREHOUSES", True, (200, 200, 100))
+            surface.blit(title, (x, y))
         y += 20
 
+        colors = self.config.colors or {}
         for wh_id, warehouse in self.engine.warehouses.items():
             stats = warehouse.get_stats()
             line = f"  {wh_id} ({stats['name']}): {stats['stored_products']}/{stats['capacity']} ({stats['utilization']*100:.0f}%)  Robots: {stats['robots_active']}/{stats['robots_total']}  In: {stats['inbound_queue']}  Out: {stats['outbound_queue']}"
-            color = self.config.colors["text"] if wh_id == self.engine.warehouses.get(self.engine.warehouses, {}).get(wh_id, {}).get('id') else self.config.colors["text_dim"]
-            text = self.small_font.render(line, True, self.config.colors["text"])
-            surface.blit(text, (x, y))
+            text_color = colors.get("text", (220, 220, 230))
+            if self.small_font:
+                text = self.small_font.render(line, True, text_color)
+                surface.blit(text, (x, y))
             y += 18
         return y + 5
 
-    def _draw_digital_twin_status(self, surface: pygame.Surface, x: int, y: int, width: int) -> int:
-        title = self.font.render("DIGITAL TWINS", True, (100, 200, 255))
-        surface.blit(title, (x, y))
+    def _draw_digital_twin_status(self, surface: "pygame.Surface", x: int, y: int, width: int) -> int:
+        if self.font:
+            title = self.font.render("DIGITAL TWINS", True, (100, 200, 255))
+            surface.blit(title, (x, y))
         y += 20
 
+        colors = self.config.colors or {}
         for wh_id, twin in self.engine.digital_twins.items():
             summary = twin.get_state_summary()
-            status_color = self.config.colors["sync_ok"] if summary["sync_status"] == "SYNCHRONIZED" else self.config.colors["sync_warning"]
+            sync_ok = colors.get("sync_ok", (80, 200, 80))
+            sync_warning = colors.get("sync_warning", (255, 200, 50))
+            status_color = sync_ok if summary["sync_status"] == "SYNCHRONIZED" else sync_warning
             line = f"  {wh_id}: {summary['products_count']} products, {summary['robots_count']} robots, {summary['inventory_count']} in inventory"
-            text = self.small_font.render(line, True, self.config.colors["text"])
-            surface.blit(text, (x, y))
+            if self.small_font:
+                text = self.small_font.render(line, True, colors.get("text", (220, 220, 230)))
+                surface.blit(text, (x, y))
 
-            status_text = self.small_font.render(f"  Status: {summary['sync_status']}", True, status_color)
-            surface.blit(status_text, (x + 150, y))
+                status_text = self.small_font.render(f"  Status: {summary['sync_status']}", True, status_color)
+                surface.blit(status_text, (x + 150, y))
             y += 18
         return y + 5
 
-    def _draw_event_log(self, surface: pygame.Surface, x: int, y: int, width: int, max_height: int) -> int:
-        title = self.font.render("EVENT LOG", True, (255, 200, 100))
-        surface.blit(title, (x, y))
+    def _draw_event_log(self, surface: "pygame.Surface", x: int, y: int, width: int, max_height: int) -> int:
+        if self.font:
+            title = self.font.render("EVENT LOG", True, (255, 200, 100))
+            surface.blit(title, (x, y))
         y += 20
 
         events = self.engine.event_log.get_recent(50)
@@ -117,31 +143,35 @@ class Dashboard:
 
             line = f"  {time_str}  {type_str}  {prod_str}  {robot_str}"
             color = self._get_event_color(event.event_type)
-            text = self.small_font.render(line, True, color)
-            surface.blit(text, (x, y))
+            if self.small_font:
+                text = self.small_font.render(line, True, color)
+                surface.blit(text, (x, y))
             y += 16
 
         return y
 
     def _get_event_color(self, event_type: EventType) -> Tuple[int, int, int]:
+        colors = self.config.colors or {}
         if "ERROR" in event_type.value or "FAILED" in event_type.value or "DESYNC" in event_type.value:
-            return self.config.colors["sync_error"]
+            return colors.get("sync_error", (255, 80, 80))
         elif "WARNING" in event_type.value:
-            return self.config.colors["sync_warning"]
+            return colors.get("sync_warning", (255, 200, 50))
         elif "SYNC" in event_type.value:
-            return self.config.colors["sync_ok"]
+            return colors.get("sync_ok", (80, 200, 80))
         else:
-            return self.config.colors["text_dim"]
+            return colors.get("text_dim", (150, 150, 170))
 
-    def _draw_product_tracking(self, surface: pygame.Surface, x: int, y: int, width: int) -> None:
+    def _draw_product_tracking(self, surface: "pygame.Surface", x: int, y: int, width: int) -> None:
         if not self.selected_product_id:
             return
 
+        colors = self.config.colors or {}
         for warehouse in self.engine.warehouses.values():
             product = warehouse.products.get(self.selected_product_id)
             if product:
-                title = self.font.render(f"PRODUCT TRACKING: {product.id}", True, (255, 255, 100))
-                surface.blit(title, (x, y))
+                if self.font:
+                    title = self.font.render(f"PRODUCT TRACKING: {product.id}", True, (255, 255, 100))
+                    surface.blit(title, (x, y))
                 y += 22
 
                 lines = [
@@ -156,15 +186,17 @@ class Dashboard:
                     "  Movement History:",
                 ]
                 for line in lines:
-                    text = self.small_font.render(line, True, self.config.colors["text"])
-                    surface.blit(text, (x, y))
+                    if self.small_font:
+                        text = self.small_font.render(line, True, colors.get("text", (220, 220, 230)))
+                        surface.blit(text, (x, y))
                     y += 16
 
                 for movement in product.movement_history[-5:]:
                     time_str = movement.timestamp.strftime("%H:%M:%S")
                     line = f"    {time_str}  {movement.event_type}  @ {movement.location}"
-                    text = self.small_font.render(line, True, self.config.colors["text_dim"])
-                    surface.blit(text, (x, y))
+                    if self.small_font:
+                        text = self.small_font.render(line, True, colors.get("text_dim", (150, 150, 170)))
+                        surface.blit(text, (x, y))
                     y += 14
                 break
 

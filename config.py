@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 @dataclass
@@ -39,7 +39,7 @@ class VisualizationConfig:
     margin: int = 20
     panel_width: int = 350
     fps: int = 60
-    colors: Dict[str, Tuple[int, int, int]] = None
+    colors: Optional[Dict[str, Tuple[int, int, int]]] = None
 
     def __post_init__(self):
         if self.colors is None:

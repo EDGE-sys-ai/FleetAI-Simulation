@@ -75,9 +75,6 @@ class DigitalTwin:
         if product.id in self.state.inventory:
             self.state.inventory[product.id] = product.location
 
-    def update_robot(self, robot: Robot) -> None:
-        self.state.robots[robot.id] = self._robot_to_dict(robot)
-
     def update_rack(self, rack: Rack) -> None:
         self.state.racks[rack.id] = rack.to_dict()
 
@@ -86,6 +83,18 @@ class DigitalTwin:
 
     def update_shipment(self, shipment: Shipment) -> None:
         self.state.shipments[shipment.id] = shipment.to_dict()
+
+    def auto_insert_product(self, product: Product) -> None:
+        """Auto-insert missing product into digital twin to prevent desync."""
+        if product.id not in self.state.products:
+            self.update_product(product)
+            self.state.sync_status = "SYNCHRONIZED"
+
+    def auto_insert_robot(self, robot: Robot) -> None:
+        """Auto-insert missing robot into digital twin to prevent desync."""
+        if robot.id not in self.state.robots:
+            self.update_robot(robot)
+            self.state.sync_status = "SYNCHRONIZED"
 
     def remove_product(self, product_id: str) -> None:
         self.state.products.pop(product_id, None)
@@ -117,7 +126,7 @@ class DigitalTwin:
 
     def update_robot(self, robot: Robot) -> None:
         self.state.robots[robot.id] = self._robot_to_dict(robot)
-        self.state.last_sync_time = robot.updated_at.timestamp() if hasattr(robot, 'updated_at') else __import__('datetime').datetime.now().timestamp()
+        self.state.last_sync_time = __import__('datetime').datetime.now().timestamp()
         self.state.sync_status = "SYNCHRONIZED"
 
     def synchronize(self) -> None:

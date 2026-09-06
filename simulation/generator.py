@@ -14,7 +14,7 @@ class SimulationGenerator:
         self.order_counter = 0
         self.transfer_counter = 0
 
-    def generate_initial_products(self, count: int = None) -> List[Product]:
+    def generate_initial_products(self, count: Optional[int] = None) -> List[Product]:
         count = count or SIMULATION_CONFIG.initial_products
         products = []
         warehouse_ids = list(self.warehouses.keys())
@@ -83,7 +83,7 @@ class SimulationGenerator:
         return shipment
 
     def _get_all_products(self) -> List[Product]:
-        products = []
+        products: List[Product] = []
         for wh in self.warehouses.values():
             products.extend(wh.products.values())
         return products

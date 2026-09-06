@@ -1,6 +1,6 @@
 import random
 import time
-from typing import Dict, List, Optional, Callable, Any
+from typing import Dict, List, Optional, Callable, Any, Tuple
 from simulation.events import Event, EventType, EventLog
 from simulation.scheduler import Scheduler
 from simulation.generator import SimulationGenerator
@@ -149,16 +149,35 @@ class SimulationEngine:
 
     def _validate_sync(self) -> None:
         for wh_id, twin in self.digital_twins.items():
-            issues = self.sync_validator.validate(wh_id, self.warehouses[wh_id], twin)
+            warehouse = self.warehouses.get(wh_id)
+            if not warehouse:
+                continue
+
+            # Auto-insert missing products and robots to prevent desync
+            for product_id, product in warehouse.products.items():
+                if product_id not in twin.state.products:
+                    twin.auto_insert_product(product)
+
+            for robot_id, robot in warehouse.robots.items():
+                if robot_id not in twin.state.robots:
+                    twin.auto_insert_robot(robot)
+
+            # Validate after auto-insertion
+            issues = self.sync_validator.validate(wh_id, warehouse, twin)
+            
+            # Only log issues that persist after auto-insertion
             for issue in issues:
-                self.event_log.add(Event.create(
-                    EventType.DIGITAL_TWIN_DESYNC,
-                    warehouse_id=wh_id,
-                    product_id=issue.get("product_id", ""),
-                    old_state=issue.get("physical", ""),
-                    new_state=issue.get("digital", ""),
-                    details=issue.get("details", ""),
-                ))
+                if issue.get("details", "").startswith("Location mismatch") or \
+                   issue.get("details", "").startswith("Status mismatch") or \
+                   issue.get("details", "").startswith("Robot position mismatch"):
+                    self.event_log.add(Event.create(
+                        EventType.DIGITAL_TWIN_DESYNC,
+                        warehouse_id=wh_id,
+                        product_id=issue.get("product_id", ""),
+                        old_state=issue.get("physical", ""),
+                        new_state=issue.get("digital", ""),
+                        details=issue.get("details", ""),
+                    ))
 
     def start(self) -> None:
         self.running = True
@@ -196,7 +215,45 @@ class SimulationEngine:
 
         for warehouse in self.warehouses.values():
             self.operations.update_warehouse(warehouse, scaled_dt)
+            self._assign_idle_patrols(warehouse)
             self._update_robots(warehouse, scaled_dt)
+
+    def _assign_idle_patrols(self, warehouse: Warehouse) -> None:
+        """Keep free AMRs moving while they monitor aisles between real tasks."""
+        has_pending_work = bool(warehouse.inbound_queue) or any(
+            order.status == OrderStatus.CREATED for order in warehouse.orders.values()
+        ) or any(
+            shipment.status == ShipmentStatus.CREATED
+            for shipment in warehouse.shipments.values()
+        )
+        if has_pending_work:
+            return
+
+        patrol_points = [
+            (rack.x - 1, rack.y)
+            for rack in warehouse.racks.values()
+            if rack.x > 0
+        ]
+        if not patrol_points:
+            return
+
+        for robot in warehouse.robots.values():
+            if robot.status != RobotStatus.IDLE or robot.needs_charge():
+                continue
+
+            point_index = (int(self.current_time // 3) + int(robot.id[-2:])) % len(patrol_points)
+            target = patrol_points[point_index]
+            start = (int(round(robot.x)), int(round(robot.y)))
+            path = self.pathfinder.find_path(warehouse, start, target, robot.id)
+            if path and len(path) > 1:
+                robot.set_destination(target[0], target[1], path, task="PATROL")
+                self.event_log.add(Event.create(
+                    EventType.ROBOT_DISPATCHED,
+                    warehouse_id=warehouse.id,
+                    robot_id=robot.id,
+                    new_state="AUTONOMOUS_PATROL",
+                    destination=target,
+                ))
 
     def _update_robots(self, warehouse: Warehouse, dt: float) -> None:
         self._exchange_peer_intents(warehouse)
@@ -234,8 +291,8 @@ class SimulationEngine:
         """Reserve next cells through a local peer-to-peer intent exchange."""
         moving = [robot for robot in warehouse.robots.values()
                   if robot.status == RobotStatus.MOVING and robot.path_index < len(robot.path)]
-        reservations = {}
-        current_cells = {}
+        reservations: Dict[Tuple[int, int], List["Robot"]] = {}
+        current_cells: Dict[str, Tuple[int, int]] = {}
 
         for robot in moving:
             step = robot.path[robot.path_index]

@@ -13,12 +13,12 @@ class PathFinder:
         warehouse: Warehouse,
         start: Tuple[int, int],
         goal: Tuple[int, int],
-        ignore_robot_id: str = None,
+ignore_robot_id: Optional[str] = None,
     ) -> List[Tuple[int, int]]:
         if start == goal:
             return [start]
 
-        open_set = []
+        open_set: List[Tuple[float, Tuple[int, int]]] = []
         heapq.heappush(open_set, (0, start))
         came_from: Dict[Tuple[int, int], Tuple[int, int]] = {}
         g_score: Dict[Tuple[int, int], float] = {start: 0}
@@ -46,7 +46,7 @@ class PathFinder:
 
         return []
 
-    def _is_valid(self, warehouse: Warehouse, pos: Tuple[int, int], ignore_robot_id: str = None, goal: Tuple[int, int] = None) -> bool:
+    def _is_valid(self, warehouse: Warehouse, pos: Tuple[int, int], ignore_robot_id: Optional[str] = None, goal: Optional[Tuple[int, int]] = None) -> bool:
         x, y = pos
         if not (0 <= x < warehouse.width and 0 <= y < warehouse.height):
             return False
@@ -86,6 +86,10 @@ class PathFinder:
         if not rack:
             return []
 
+        # Round robot position for pathfinding
+        robot_x = int(round(robot.x))
+        robot_y = int(round(robot.y))
+
         target_positions = [
             (rack.x - 1, rack.y),
             (rack.x + 1, rack.y),
@@ -105,7 +109,7 @@ class PathFinder:
         best_length = float('inf')
 
         for target in valid_targets:
-            path = self.find_path(warehouse, (robot.x, robot.y), target, robot.id)
+            path = self.find_path(warehouse, (robot_x, robot_y), target, robot.id)
             if path and len(path) < best_length:
                 best_length = len(path)
                 best_path = path
@@ -136,11 +140,15 @@ class PathFinder:
         if not targets:
             return []
 
+        # Round robot position for pathfinding
+        robot_x = int(round(robot.x))
+        robot_y = int(round(robot.y))
+
         best_path = None
         best_length = float('inf')
 
         for target in targets:
-            path = self.find_path(warehouse, (robot.x, robot.y), target, robot.id)
+            path = self.find_path(warehouse, (robot_x, robot_y), target, robot.id)
             if path and len(path) < best_length:
                 best_length = len(path)
                 best_path = path

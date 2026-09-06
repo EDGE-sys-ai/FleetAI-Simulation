@@ -446,7 +446,9 @@ class TestIntegration:
         warehouse_a.add_product(product)
 
         rack_a = warehouse_a.find_best_rack(product)
+        assert rack_a is not None
         shelf = rack_a.add_product(product.id)
+        assert shelf is not None
         product.update_status(ProductStatus.STORED, rack_a.get_location_string(shelf))
 
         transferred = warehouse_a.remove_product(product.id)
@@ -456,7 +458,9 @@ class TestIntegration:
         warehouse_b.add_product(product)
 
         rack_b = warehouse_b.find_best_rack(product)
+        assert rack_b is not None
         shelf_b = rack_b.add_product(product.id)
+        assert shelf_b is not None
         product.update_status(ProductStatus.STORED, rack_b.get_location_string(shelf_b))
 
         assert product.warehouse_id == "WH-B"

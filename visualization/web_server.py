@@ -73,7 +73,7 @@ class WebSimulationServer:
             tick += 1
             if tick % 600 == 0:  # every 10 seconds
                 print(f"  Heartbeat: running={self.running}, paused={self.engine.paused}")
-            socketio.sleep(dt)
+            socketio.sleep(int(dt * 1000))  # Convert to milliseconds
     
     def get_state(self):
         return {

@@ -59,8 +59,12 @@ class WarehouseOperations:
         inbound_x = warehouse.inbound_zone[0] + 1
         inbound_y = warehouse.inbound_zone[1] + 1
 
+        # Round robot position for comparison
+        robot_x_int = int(round(robot.x))
+        robot_y_int = int(round(robot.y))
+
         # If robot already at inbound position, start loading immediately
-        if robot.x == inbound_x and robot.y == inbound_y:
+        if robot_x_int == inbound_x and robot_y_int == inbound_y:
             robot.start_load_unload()
             self._robot_tasks[robot.id] = {"product_id": product.id, "phase": "LOADING"}
             self.event_log.add(Event.create(
@@ -72,7 +76,8 @@ class WarehouseOperations:
             ))
             return
 
-        path = self.pathfinder.find_path(warehouse, (robot.x, robot.y), (inbound_x, inbound_y), robot.id)
+        # Use rounded coordinates for pathfinding
+        path = self.pathfinder.find_path(warehouse, (robot_x_int, robot_y_int), (inbound_x, inbound_y), robot.id)
         if path:
             robot.set_destination(inbound_x, inbound_y, path, task="INBOUND_PICKUP")
             robot.assigned_task = "INBOUND_PICKUP"
@@ -272,6 +277,8 @@ class WarehouseOperations:
             self._complete_unloading(warehouse, robot, task_info)
         elif phase == "SCANNING":
             self._complete_scanning(warehouse, robot, task_info)
+        elif phase in ("SHIPMENT_DELIVER", "ORDER_DELIVER"):
+            self._complete_dispatch_delivery(warehouse, robot, task_info)
 
     def _complete_loading(self, warehouse: Warehouse, robot: Robot, task_info: dict) -> None:
         product_id = task_info["product_id"]
@@ -314,6 +321,7 @@ class WarehouseOperations:
     def _complete_unloading(self, warehouse: Warehouse, robot: Robot, task_info: dict) -> None:
         product_id = task_info["product_id"]
         product = warehouse.products.get(product_id)
+        dispatching = False
 
         if product:
             robot.release_product()
@@ -359,8 +367,9 @@ class WarehouseOperations:
 
                     path = self.pathfinder.find_path_to_zone(warehouse, robot, warehouse.outbound_zone)
                     if path:
-                        task_info["phase"] = "SHIPMENT_DELIVER"
+                        task_info["phase"] = "ORDER_DELIVER"
                         robot.set_destination(0, 0, path, task="SHIPMENT_DELIVER")
+                        dispatching = True
 
             elif task_info.get("shipment_id"):
                 shipment_id = task_info["shipment_id"]
@@ -379,7 +388,46 @@ class WarehouseOperations:
                     if path:
                         task_info["phase"] = "SHIPMENT_DELIVER"
                         robot.set_destination(0, 0, path, task="SHIPMENT_DELIVER")
+                        dispatching = True
 
+        if not dispatching:
+            robot.status = RobotStatus.IDLE
+            self._robot_tasks.pop(robot.id, None)
+
+    def _complete_dispatch_delivery(self, warehouse: Warehouse, robot: Robot, task_info: dict) -> None:
+        """Finish the final autonomous leg at the outbound handover zone."""
+        product = warehouse.products.get(task_info.get("product_id", ""))
+        if product:
+            product.update_status(ProductStatus.SHIPPED, "OUTBOUND", "Handed over for dispatch")
+            product.current_robot_id = None
+
+        shipment_id = task_info.get("shipment_id")
+        if shipment_id:
+            shipment = warehouse.shipments.get(shipment_id)
+            if shipment:
+                shipment.update_status(ShipmentStatus.DEPARTED, warehouse.id, "Autonomous dispatch handover")
+
+        order_id = task_info.get("order_id")
+        if order_id:
+            order = warehouse.orders.get(order_id)
+            if order and order.is_complete():
+                order.status = OrderStatus.COMPLETED
+                self.event_log.add(Event.create(
+                    EventType.ORDER_COMPLETED,
+                    warehouse_id=warehouse.id,
+                    order_id=order.id,
+                    product_id=task_info.get("product_id", ""),
+                    new_state="COMPLETED",
+                ))
+
+        self.event_log.add(Event.create(
+            EventType.SHIPMENT_DISPATCHED,
+            warehouse_id=warehouse.id,
+            robot_id=robot.id,
+            product_id=task_info.get("product_id", ""),
+            shipment_id=shipment_id or "",
+            new_state="DISPATCHED",
+        ))
         robot.status = RobotStatus.IDLE
         self._robot_tasks.pop(robot.id, None)
 
@@ -435,7 +483,7 @@ class WarehouseOperations:
                 self._assign_inbound_task(warehouse, robot, product)
 
         for order in list(warehouse.orders.values()):
-            if order.status == OrderStatus.CREATED:
+            if order.status in (OrderStatus.CREATED, OrderStatus.PICKING):
                 self.process_order(order)
 
         for shipment in list(warehouse.shipments.values()):

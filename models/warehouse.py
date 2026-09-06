@@ -56,7 +56,7 @@ class Warehouse:
             start_y = config.inbound_zone[1] + 1 + (i // 4)
             robot = Robot.create(config.id, start_x, start_y, i + 1)
             warehouse.robots[robot.id] = robot
-            warehouse.grid_occupancy.add((robot.x, robot.y))
+            warehouse.grid_occupancy.add((int(round(robot.x)), int(round(robot.y))))
 
         return warehouse
 
@@ -68,11 +68,11 @@ class Warehouse:
 
     def get_robot_at(self, x: int, y: int) -> Optional[Robot]:
         for robot in self.robots.values():
-            if robot.x == x and robot.y == y:
+            if int(round(robot.x)) == x and int(round(robot.y)) == y:
                 return robot
         return None
 
-    def is_cell_free(self, x: int, y: int, ignore_robot_id: str = None) -> bool:
+    def is_cell_free(self, x: int, y: int, ignore_robot_id: Optional[str] = None) -> bool:
         if not (0 <= x < self.width and 0 <= y < self.height):
             return False
         if (x, y) in self.grid_occupancy:
@@ -113,7 +113,7 @@ class Warehouse:
                 return rack.id
         return None
 
-    def get_available_robot(self, exclude_ids: Set[str] = None) -> Optional[Robot]:
+    def get_available_robot(self, exclude_ids: Optional[Set[str]] = None) -> Optional[Robot]:
         exclude = exclude_ids or set()
         for robot in self.robots.values():
             if robot.id not in exclude and robot.status == RobotStatus.IDLE and robot.battery > 20:
