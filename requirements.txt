@@ -1,3 +1,11 @@
+# Pygame desktop visualization
 pygame>=2.5.0
+
+# Browser dashboard and live Socket.IO updates
+eventlet>=0.35.0
+Flask>=2.3.0
+Flask-SocketIO>=5.3.0
+
+# Test tools
 pytest>=7.0.0
 pytest-cov>=4.0.0

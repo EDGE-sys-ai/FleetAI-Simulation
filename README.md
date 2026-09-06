@@ -43,7 +43,16 @@ python -m pip install -r requirements.txt
 
 ## Quick Start
 
-Start the browser-based simulation with one command:
+Install the dependencies first:
+
+```powershell
+cd "D:\DEMO ITEMS\warehouse_sim"
+python -m pip install -r requirements.txt
+```
+
+Choose one of the two visual interfaces:
+
+Start the browser dashboard:
 
 ```powershell
 cd "D:\DEMO ITEMS\warehouse_sim"; python visualization\web_server.py
@@ -51,13 +60,13 @@ cd "D:\DEMO ITEMS\warehouse_sim"; python visualization\web_server.py
 
 Then open [http://localhost:5000](http://localhost:5000). The server starts the simulation automatically. Keep that terminal open while using the dashboard. Press `Ctrl+C` in the same terminal to stop it.
 
-If port `5000` is already in use, stop the previous server before starting another copy. Only one web server should run on port `5000`.
+Or start the desktop Pygame dashboard:
 
-## Manual Installation
-
-```bash
-pip install -r requirements.txt
+```powershell
+python main.py
 ```
+
+If port `5000` is already in use, stop the previous server before starting another copy. Only one web server should run on port `5000`.
 
 ## Running the Simulation
 
@@ -82,6 +91,40 @@ The web server has no duration limit. The default product limit is 100 products.
 ```bash
 python main.py
 ```
+
+The Pygame view is an interactive simulation. It starts with products and robots already present. Robots process real warehouse tasks continuously; when no receiving, picking, or dispatch task is waiting, free robots patrol the aisles autonomously.
+
+### How to Play the Pygame Simulation
+
+Follow this sequence to see the complete warehouse workflow:
+
+1. Start `python main.py`.
+2. If the dashboard says `PAUSED`, press `SPACE` to resume.
+3. Press `R` several times to create incoming products at the receiving dock.
+4. Watch a robot approach the inbound zone, scan the barcode, choose a rack, and transport the product to storage.
+5. Press `O` to create a customer or dealer order for stored products.
+6. Watch robots retrieve products from racks and carry them to the outbound dispatch zone.
+7. Press `T` to create an inter-warehouse transfer between Warehouse Alpha and Warehouse Beta.
+8. Press `D` to inspect digital-twin synchronization and `E` to inspect the event stream.
+9. Press `H` at any time to show the in-app help panel.
+
+The simulation is not a manual robot-driving game. You create warehouse events, and the robot fleet makes the decisions: task assignment, barcode scanning, rack selection, A* route planning, peer coordination, collision yielding, inventory updates, and dispatch handover.
+
+### What to Watch
+
+- Green robot ring: moving or clear to move.
+- Yellow robot ring: scanning, loading, unloading, or busy.
+- Red robot ring: waiting, blocked, or reporting a coordination issue.
+- Glowing route: the robot's current planned path.
+- Pulsing rack marker: the rack contains products.
+- Right dashboard: inventory, active robots, digital-twin health, and recent events.
+- Idle robots: autonomous aisle patrols continue until a real warehouse task becomes available.
+
+### Mouse Controls
+
+- Left-click a robot or rack to select it and show telemetry.
+- Right-click to cycle through simulation speeds.
+- Scroll up to increase speed and scroll down to decrease speed.
 
 ### Headless Mode
 ```bash
@@ -113,6 +156,14 @@ python main.py --headless --duration 60 --export simulation_logs/events.json
 | ↑/↓ | Scroll event log |
 | H | Show help |
 | ESC | Exit |
+
+Mouse controls:
+
+| Mouse action | Result |
+|-------------|--------|
+| Left-click robot or rack | Select and show telemetry |
+| Right-click | Cycle speed |
+| Scroll up/down | Increase/decrease speed |
 
 ## Project Structure
 
@@ -165,6 +216,23 @@ Every physical action generates an event that flows through the system:
 3. **Server Processing** (validation, state updates)
 4. **Digital Twin Update** (virtual representation updated)
 5. **Sync Validation** (periodic comparison)
+
+The full autonomous workflow is:
+
+```text
+Shipment arrival
+-> Barcode scan and product identification
+-> AI storage decision
+-> P2P robot coordination
+-> Dynamic A* route planning
+-> Autonomous transport
+-> Rack placement verification
+-> Inventory and digital-twin synchronization
+-> Customer/dealer order
+-> Autonomous retrieval
+-> Outbound dispatch handover
+-> Real-time inventory update
+```
 
 ### Event Types
 
