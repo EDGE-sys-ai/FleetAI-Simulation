@@ -118,6 +118,7 @@ The simulation is not a manual robot-driving game. You create warehouse events, 
 - Glowing route: the robot's current planned path.
 - Pulsing rack marker: the rack contains products.
 - Right dashboard: inventory, active robots, digital-twin health, and recent events.
+- P2P NETWORK section: active robot intents, nearby coordination, and `YIELD` decisions.
 - Idle robots: autonomous aisle patrols continue until a real warehouse task becomes available.
 
 ### Mouse Controls
@@ -125,6 +126,28 @@ The simulation is not a manual robot-driving game. You create warehouse events, 
 - Left-click a robot or rack to select it and show telemetry.
 - Right-click to cycle through simulation speeds.
 - Scroll up to increase speed and scroll down to decrease speed.
+
+### P2P and Warehouse Records
+
+The Pygame dashboard's `P2P NETWORK` section shows the fleet's live coordination state:
+
+- `Active intents`: robots currently advertising their next grid cell.
+- `Yielding`: robots temporarily waiting because another robot has priority or a route conflict exists.
+- `P2P_INTENT` and `P2P_YIELD` entries: recorded peer coordination events in the event log.
+
+The complete live record is written automatically while Pygame is running to:
+
+```text
+data/simulation_logs/live_state.json
+```
+
+That JSON contains simulation statistics, both warehouses, robot positions and routes, peer status/messages, products and exact inventory locations, orders, shipments, and the complete event history. The product lifecycle can be followed through events such as `PRODUCT_ARRIVED`, `PRODUCT_SCANNED`, `DESTINATION_ASSIGNED`, `PRODUCT_DELIVERED`, `ORDER_CREATED`, `ORDER_PICKED`, and `SHIPMENT_DISPATCHED`.
+
+Press `P` to show or hide the P2P panel. Use `E` to show or hide the event log. For a one-time event-only export from headless or demo mode:
+
+```powershell
+python main.py --headless --duration 60 --export data/simulation_logs/events.json
+```
 
 ### Headless Mode
 ```bash

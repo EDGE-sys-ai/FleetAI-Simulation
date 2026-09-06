@@ -230,7 +230,16 @@ class MultiWarehouseView:
 
     def draw(self, surface: pygame.Surface, x: int, y: int, show_paths: bool = True) -> None:
         if self.active_warehouse and self.active_warehouse in self.views:
-            self.views[self.active_warehouse].draw(surface, x, y, show_paths)
+            view = self.views[self.active_warehouse]
+            if view.font:
+                colors = self.config.colors or {}
+                label = view.font.render(
+                    f"ACTIVE WAREHOUSE: {view.warehouse.name} ({view.warehouse.id})",
+                    True,
+                    colors.get("text", (220, 220, 230)),
+                )
+                surface.blit(label, (x, y - 24))
+            view.draw(surface, x, y, show_paths)
 
     def handle_click(self, pos: Tuple[int, int], view_x: int, view_y: int) -> Optional[str]:
         if not self.active_warehouse:

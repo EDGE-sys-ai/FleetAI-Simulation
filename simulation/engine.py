@@ -1,5 +1,7 @@
 import random
 import time
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any, Tuple
 from simulation.events import Event, EventType, EventLog
 from simulation.scheduler import Scheduler
@@ -43,6 +45,7 @@ class SimulationEngine:
         self.operations.set_warehouses(warehouses)
 
         self._callbacks: Dict[str, List[Callable]] = {}
+        self._last_peer_messages: Dict[str, str] = {}
         self._init_digital_twins()
         self._setup_recurring_events()
 
@@ -323,6 +326,20 @@ class SimulationEngine:
                     robot.peer_message = f"SWAP BLOCKED BY {peer.id}"
                     break
 
+        for robot in moving:
+            previous = self._last_peer_messages.get(robot.id)
+            if robot.peer_message != previous:
+                event_type = EventType.P2P_YIELD if robot.peer_status == "WAITING" else EventType.P2P_INTENT
+                self.event_log.add(Event.create(
+                    event_type,
+                    warehouse_id=warehouse.id,
+                    robot_id=robot.id,
+                    new_state=robot.peer_status,
+                    intent=robot.peer_intent,
+                    message=robot.peer_message,
+                ))
+                self._last_peer_messages[robot.id] = robot.peer_message
+
     def subscribe(self, event_type: str, callback: Callable) -> None:
         if event_type not in self._callbacks:
             self._callbacks[event_type] = []
@@ -358,6 +375,34 @@ class SimulationEngine:
         }
 
     def export_logs(self, filepath: str) -> None:
-        import json
         with open(filepath, 'w') as f:
             json.dump(self.event_log.to_json(), f, indent=2)
+
+    def get_observability_state(self) -> dict:
+        """Return the complete state used by the visual observability panel."""
+        warehouses = {}
+        for warehouse_id, warehouse in self.warehouses.items():
+            warehouses[warehouse_id] = {
+                "name": warehouse.name,
+                "stats": warehouse.get_stats(),
+                "robots": [robot.to_dict() | {
+                    "peer_status": robot.peer_status,
+                    "peer_message": robot.peer_message,
+                    "peer_intent": robot.peer_intent,
+                } for robot in warehouse.robots.values()],
+                "products": [product.to_dict() for product in warehouse.products.values()],
+                "orders": [order.to_dict() for order in warehouse.orders.values()],
+                "shipments": [shipment.to_dict() for shipment in warehouse.shipments.values()],
+                "inventory": dict(warehouse.inventory),
+            }
+        return {
+            "generated_at": time.time(),
+            "simulation": self.get_stats(),
+            "warehouses": warehouses,
+            "events": self.event_log.to_json(),
+        }
+
+    def export_state(self, filepath: str) -> None:
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.get_observability_state(), indent=2), encoding="utf-8")

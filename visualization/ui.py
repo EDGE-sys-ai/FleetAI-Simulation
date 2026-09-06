@@ -120,7 +120,7 @@ class UIManager:
     def _create_controls(self) -> None:
         button_y = 10
         button_x = 10
-        btn_w, btn_h = 100, 30
+        btn_w, btn_h = 88, 28
         spacing = 5
 
         controls = [
@@ -131,12 +131,15 @@ class UIManager:
             ("Toggle Twin", self.dashboard.toggle_digital_twin),
             ("Toggle Log", self.dashboard.toggle_event_log),
             ("Toggle Stats", self.dashboard.toggle_stats),
+            ("Toggle P2P", self.dashboard.toggle_p2p),
             ("Help", self._toggle_help),
+            ("WH-A", lambda: self.warehouse_view.set_active("WH-A")),
+            ("WH-B", lambda: self.warehouse_view.set_active("WH-B")),
         ]
 
         for i, (text, callback) in enumerate(controls):
-            col = i % 4
-            row = i // 4
+            col = i
+            row = 0
             btn = Button(
                 button_x + col * (btn_w + spacing),
                 button_y + row * (btn_h + spacing),
@@ -145,7 +148,7 @@ class UIManager:
             self.buttons.append(btn)
 
         self.speed_control = SpeedControl(
-            button_x + 4 * (btn_w + spacing) + 20,
+            button_x + len(controls) * (btn_w + spacing) + 10,
             button_y,
             self.config,
             lambda: self.engine.speed,
@@ -260,6 +263,9 @@ class UIManager:
             return True
         elif key == pygame.K_s:
             self.dashboard.toggle_stats()
+            return True
+        elif key == pygame.K_p:
+            self.dashboard.toggle_p2p()
             return True
         elif key == pygame.K_ESCAPE:
             self.engine.stop()

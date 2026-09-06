@@ -149,7 +149,7 @@ def run_visual(engine: SimulationEngine) -> None:
     viz_config = VisualizationConfig()
     screen_width = 1400
     screen_height = 900
-    screen = pygame.display.set_mode((screen_width, screen_height))
+    screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
     pygame.display.set_caption("Warehouse Digital Twin Simulation")
     clock = pygame.time.Clock()
 
@@ -158,19 +158,31 @@ def run_visual(engine: SimulationEngine) -> None:
     ui_manager = UIManager(viz_config, engine, dashboard, warehouse_view)
 
     view_x = 20
-    view_y = 60
-    panel_x = view_x + 800
-    panel_y = 60
-    panel_width = 550
+    panel_y = 80
+    header_height = 70
 
     engine.start()
+    live_export_path = "data/simulation_logs/live_state.json"
+    last_export_time = 0.0
 
     print("Visualization started. Press H for help, ESC to exit.")
 
     running = True
     while running and engine.running:
+        screen_width, screen_height = screen.get_size()
+        view_y = header_height
+        active_warehouse = warehouse_view.active_warehouse
+        warehouse_width = (
+            engine.warehouses[active_warehouse].width * viz_config.cell_size
+            if active_warehouse else viz_config.cell_size
+        )
+        panel_x = view_x + warehouse_width + 20
+        panel_width = max(360, screen_width - panel_x - 20)
         dt = clock.tick(viz_config.fps) / 1000.0
         engine.update(dt)
+        if engine.current_time - last_export_time >= 1.0:
+            engine.export_state(live_export_path)
+            last_export_time = engine.current_time
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -182,10 +194,12 @@ def run_visual(engine: SimulationEngine) -> None:
                     ui_manager.handle_event(event)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    # Left-click: Select robot/rack and show telemetry
-                    clicked = warehouse_view.handle_click(event.pos, view_x, view_y)
-                    if clicked:
-                        dashboard.select_product(clicked)
+                    # Toolbar buttons take priority over warehouse selection.
+                    handled = ui_manager.handle_event(event)
+                    if not handled:
+                        clicked = warehouse_view.handle_click(event.pos, view_x, view_y)
+                        if clicked:
+                            dashboard.select_product(clicked)
                 elif event.button == 3:
                     # Right-click: Adjust simulation speed (cycle through speeds)
                     speeds = [0.5, 1.0, 2.0]

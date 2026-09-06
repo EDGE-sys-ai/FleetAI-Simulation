@@ -30,6 +30,8 @@ class EventType(str, Enum):
     SCAN_FAILED = "SCAN_FAILED"
     ROBOT_ERROR = "ROBOT_ERROR"
     NETWORK_DELAY = "NETWORK_DELAY"
+    P2P_INTENT = "P2P_INTENT"
+    P2P_YIELD = "P2P_YIELD"
 
 
 @dataclass

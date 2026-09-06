@@ -26,6 +26,7 @@ class Dashboard:
         self.show_digital_twin = True
         self.show_event_log = True
         self.show_stats = True
+        self.show_p2p = True
         self.event_log_scroll = 0
 
     def _init_fonts(self) -> None:
@@ -52,6 +53,9 @@ class Dashboard:
         current_y = self._draw_header(surface, x + 10, current_y, width - 20)
         current_y = self._draw_simulation_stats(surface, x + 10, current_y, width - 20)
         current_y = self._draw_warehouse_stats(surface, x + 10, current_y, width - 20)
+
+        if self.show_p2p:
+            current_y = self._draw_p2p_status(surface, x + 10, current_y, width - 20)
 
         if self.show_digital_twin:
             current_y = self._draw_digital_twin_status(surface, x + 10, current_y, width - 20)
@@ -83,6 +87,43 @@ class Dashboard:
                 text = self.font.render(line, True, colors.get("text", (220, 220, 230)))
                 surface.blit(text, (x, y))
             y += 20
+        return y + 5
+
+    def _draw_p2p_status(self, surface: "pygame.Surface", x: int, y: int, width: int) -> int:
+        """Display live peer intents and yield decisions made by the fleet."""
+        if self.font:
+            title = self.font.render("P2P NETWORK", True, (120, 220, 255))
+            surface.blit(title, (x, y))
+        y += 20
+
+        moving = 0
+        waiting = 0
+        peer_rows = []
+        for warehouse in self.engine.warehouses.values():
+            for robot in warehouse.robots.values():
+                if robot.peer_intent is not None:
+                    moving += 1
+                    if robot.peer_status == "WAITING":
+                        waiting += 1
+                    peer_rows.append((robot.id, robot.peer_status, robot.peer_message))
+
+        if self.small_font:
+            summary = self.small_font.render(
+                f"  Active intents: {moving}   Yielding: {waiting}   Local peer coordination",
+                True,
+                (190, 230, 240),
+            )
+            surface.blit(summary, (x, y))
+            y += 16
+            for robot_id, status, message in peer_rows[:3]:
+                color = (255, 170, 100) if status == "WAITING" else (120, 220, 150)
+                detail = self.small_font.render(
+                    f"  {robot_id[-8:]}  {status}: {message[:42]}",
+                    True,
+                    color,
+                )
+                surface.blit(detail, (x, y))
+                y += 15
         return y + 5
 
     def _draw_warehouse_stats(self, surface: "pygame.Surface", x: int, y: int, width: int) -> int:
@@ -119,9 +160,9 @@ class Dashboard:
                 text = self.small_font.render(line, True, colors.get("text", (220, 220, 230)))
                 surface.blit(text, (x, y))
 
-                status_text = self.small_font.render(f"  Status: {summary['sync_status']}", True, status_color)
-                surface.blit(status_text, (x + 150, y))
-            y += 18
+                status_text = self.small_font.render(f"  Sync: {summary['sync_status']}", True, status_color)
+                surface.blit(status_text, (x, y + 14))
+            y += 32
         return y + 5
 
     def _draw_event_log(self, surface: "pygame.Surface", x: int, y: int, width: int, max_height: int) -> int:
@@ -158,6 +199,8 @@ class Dashboard:
             return colors.get("sync_warning", (255, 200, 50))
         elif "SYNC" in event_type.value:
             return colors.get("sync_ok", (80, 200, 80))
+        elif "P2P" in event_type.value:
+            return (120, 220, 255)
         else:
             return colors.get("text_dim", (150, 150, 170))
 
@@ -213,6 +256,9 @@ class Dashboard:
 
     def toggle_stats(self) -> None:
         self.show_stats = not self.show_stats
+
+    def toggle_p2p(self) -> None:
+        self.show_p2p = not self.show_p2p
 
     def select_product(self, product_id: str) -> None:
         self.selected_product_id = product_id
